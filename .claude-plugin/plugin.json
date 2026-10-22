@@ -1,0 +1,23 @@
+{
+  "name": "miniaturas",
+  "version": "0.1.0",
+  "description": "Miniatura das imagens coladas no prompt, antes e depois de enviar: pequena sempre à vista, numa dica ao passar o mouse ou grande e fixa acima do prompt.",
+  "author": { "name": "Gabriel" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "modo": {
+      "type": "string",
+      "title": "Como mostrar",
+      "description": "miniatura: pequena, acima do prompt enquanto você escreve e embaixo de cada mensagem enviada. dica: só a etiqueta #N, e a miniatura aparece ao passar o mouse (precisa do modo tela cheia; fora dele vale miniatura). fixa: a imagem mais recente fica grande acima do prompt o tempo todo, mesmo depois de enviar.",
+      "default": "miniatura",
+      "options": ["miniatura", "dica", "fixa"]
+    },
+    "desenho": {
+      "type": "string",
+      "title": "Desenho",
+      "description": "auto: imagem de verdade no kitty e no Ghostty, blocos coloridos nos outros terminais. blocos: sempre blocos coloridos. imagem: sempre o protocolo de imagem do kitty.",
+      "default": "auto",
+      "options": ["auto", "blocos", "imagem"]
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "miniaturas-claude",
+  "description": "Mod do Claude Code: a miniatura das imagens coladas no prompt",
+  "owner": { "name": "Gabriel" },
+  "plugins": [{ "name": "miniaturas", "source": "./" }]
+}
