@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { caber, celulas, lerPam, realcar, reduzir } from '../hooks/pixels'
-import { numerosDeImagem } from '../hooks/util'
+import { numerosDeImagem, utf16Base64 } from '../hooks/util'
 
 const PADRAO = 0x01000000
 const VERMELHO = [255, 0, 0, 255]
@@ -42,6 +42,16 @@ test('lê um PAM RGB e completa o alfa', () => {
   const px = lerPam(pam(1, 2, 3, [10, 20, 30, 40, 50, 60]))
 
   expect([...(px?.rgba ?? [])]).toEqual([10, 20, 30, 255, 40, 50, 60, 255])
+})
+
+test('lê o PAM BGR_ALPHA que o PowerShell grava no Windows, trocando o azul com o vermelho', () => {
+  const cabecalho = 'P7\nWIDTH 2\nHEIGHT 1\nDEPTH 4\nMAXVAL 255\nTUPLTYPE BGR_ALPHA\nENDHDR\n'
+  const dados = [10, 20, 30, 255, 40, 50, 60, 128]
+  const bytes = new Uint8Array(cabecalho.length + dados.length)
+  for (let i = 0; i < cabecalho.length; i++) bytes[i] = cabecalho.charCodeAt(i)
+  bytes.set(dados, cabecalho.length)
+
+  expect(Array.from(lerPam(bytes)!.rgba)).toEqual([30, 20, 10, 255, 60, 50, 40, 128])
 })
 
 test('recusa o que não é PAM', () => {
@@ -132,4 +142,9 @@ test('acha os números dos marcadores de imagem, sem repetir', () => {
   expect(numerosDeImagem('a [Image #6] b [Image #7] c [Image #6]')).toEqual([6, 7])
   expect(numerosDeImagem('[Image #0] [Imagem #3] [Image #x] [Image #12]')).toEqual([12])
   expect(numerosDeImagem('sem imagem')).toEqual([])
+})
+
+test('codifica o script como o -EncodedCommand do PowerShell lê: UTF-16LE em base64', () => {
+  expect(utf16Base64('ab')).toBe('YQBiAA==')
+  expect(utf16Base64('ã')).toBe('4wA=')
 })

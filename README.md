@@ -33,7 +33,11 @@ qual está valendo.
 ## Como a miniatura é desenhada
 
 - **No kitty e no Ghostty:** a imagem de verdade, pelo protocolo de imagem do kitty.
-- **Nos outros terminais** (Ptyxis, GNOME Terminal, Konsole, Warp…): blocos de oitavos e de quadrantes
+- **No Bullpen (2.4.2 ou mais novo), e em qualquer terminal que avise o Claude Code com
+  `CLAUDE_CODE_FORCE_TERMINAL_IMAGES=1`:** a imagem de verdade também. O mod manda o PNG em bytes, porque um terminal
+  desses pode não abrir arquivo (o do Bullpen roda num webview). No Bullpen do Windows o aviso fica desligado até
+  você abrir o Bullpen com `BULLPEN_TERMINAL_IMAGES=1`.
+- **Nos outros terminais** (Ptyxis, GNOME Terminal, Konsole, Warp, Windows Terminal…): blocos de oitavos e de quadrantes
   (`▁▂▃▄▅▆▇ ▏▎▍▌▋▊▉ ▘▝▖▗▚▞ █`) em cor verdadeira. Cada caractere resume 8×8 pixels da imagem no bloco e no par
   de cores que melhor os separam, então as bordas ficam a 1/8 de caractere. A faixa acima do prompt usa até
   20 linhas (no máximo metade da tela), porque é ali que se confere a colagem. Dá para reconhecer a imagem pelo
@@ -43,9 +47,11 @@ qual está valendo.
 
 ## Precisa de
 
-- `ffmpeg` (com `ffprobe`), que reduz a imagem. Sem ele o mod avisa uma vez e não desenha.
-- Para a prévia **antes** do envio: Linux com `wl-paste` (Wayland) ou `xclip` (X11), os mesmos que o Claude Code usa
-  para colar imagem. Depois do envio a miniatura vem do arquivo que o Claude Code gravou.
+- **Linux e macOS:** `ffmpeg` (com `ffprobe`), que reduz a imagem; sem ele o mod avisa uma vez e não desenha. Para a
+  prévia **antes** do envio, `wl-paste` (Wayland) ou `xclip` (X11), os mesmos que o Claude Code usa para colar imagem.
+- **Windows:** nada além do Windows PowerShell 5.1, que já vem no Windows. A área de transferência e a redução da
+  imagem vão por ele (`System.Windows.Forms` e `System.Drawing`), sem `ffmpeg`.
+- Depois do envio a miniatura vem do arquivo que o Claude Code gravou.
 
 ## Como funciona, e os limites
 
@@ -54,7 +60,8 @@ qual está valendo.
 - Se você **arrastar** um arquivo de imagem para o terminal em vez de colar, a prévia antes do envio pode mostrar o
   que estiver na área de transferência. Depois do envio ela passa a vir do arquivo que o modelo recebeu.
 - O cache fica em `$XDG_RUNTIME_DIR/claude-miniaturas/<sessão>/` (sem essa variável, em `/tmp`), só com permissão
-  para você. As pastas de sessões com mais de 2 dias são apagadas sozinhas.
+  para você; no Windows, em `%LOCALAPPDATA%\claude-miniaturas\<sessão>\`. As pastas de outras sessões com mais de
+  2 dias são apagadas sozinhas.
 - Mensagens com imagem de antes do mod carregar (uma sessão retomada, por exemplo) ganham a miniatura se o arquivo
   que o Claude Code gravou ainda existir em `/tmp`.
 
@@ -82,8 +89,8 @@ Para desinstalar: `claude plugin uninstall miniaturas@miniaturas-claude`.
 
 | Arquivo | O quê |
 | --- | --- |
-| `hooks/register.tsx` | os hooks: captura da colagem, ffmpeg, o desenho na faixa e nas mensagens, o comando |
-| `hooks/pixels.ts` | funções puras: ler o PAM do ffmpeg, caber, reduzir, montar as células do `Raster` |
+| `hooks/register.tsx` | os hooks: captura da colagem, redução (ffmpeg; no Windows, os scripts do PowerShell), o desenho na faixa e nas mensagens, o comando |
+| `hooks/pixels.ts` | funções puras: ler o PAM (do ffmpeg, ou o BGR_ALPHA do PowerShell), caber, reduzir, montar as células do `Raster` |
 | `hooks/util.ts` | achar os `[Image #N]` de um texto |
 | `types/index.d.ts` | o contrato do `$.state` |
 | `tests/` | os testes |

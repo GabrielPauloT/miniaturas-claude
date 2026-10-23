@@ -6,6 +6,9 @@ import { paraBase64 } from '../hooks/pixels'
 
 const PASTA = '/run/user/1000/claude-miniaturas/sessao-teste'
 const IMAGENS_DO_CLAUDE = '/tmp/claude-1000/-projeto/sessao-teste/images'
+const NO_WINDOWS = { OS: 'Windows_NT', LOCALAPPDATA: 'C:\\Users\\gabri\\AppData\\Local', XDG_RUNTIME_DIR: '' }
+const PASTA_NO_WINDOWS = 'C:\\Users\\gabri\\AppData\\Local\\claude-miniaturas\\sessao-teste'
+const IMAGENS_DO_CLAUDE_NO_WINDOWS = 'C:\\Users\\gabri\\AppData\\Local\\Temp\\claude\\C--projeto\\sessao-teste\\images'
 
 /** 4×2 pixels: a linha de cima vermelha, a de baixo azul. */
 const PAM = (() => {
@@ -17,6 +20,9 @@ const PAM = (() => {
 
   return bytes
 })()
+
+/** Um PNG de 1×1 de verdade: o que o ffmpeg deixa no `-mini.png`. */
+const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
 const FAIXA = {
   hasSurvey: false,
@@ -32,6 +38,8 @@ const TELA = { columns: 100, rows: 40, isFullscreen: true } as const
 type Mundo = {
   relogio: MockClock
   comandos: string[][]
+  /** As variáveis que cada comando recebeu, na ordem dos comandos. */
+  ambientes: Record<string, string>[]
   toasts: string[]
   configs: { key: string; value: unknown }[]
 }
@@ -44,10 +52,11 @@ function saida(stdout: string, exitCode = 0) {
  * O mundo debaixo do mod: o terminal, a área de transferência com uma imagem, o ffmpeg, o cache
  * e o próprio Claude Code, que aceita a edição do prompt e desenha "engine" onde o mod deixa.
  */
-function mundo(on: On, variaveis: Record<string, string> = {}, ffmpeg: 'ok' | 'ausente' = 'ok'): Mundo {
+function mundo(on: On, variaveis: Record<string, string> = {}, ffmpeg: 'ok' | 'ausente' = 'ok', png = PNG): Mundo {
   mock.env(on, { XDG_RUNTIME_DIR: '/run/user/1000', TERM: 'xterm-256color', ...variaveis })
   const relogio = mock.clock(on, { now: 1_000 })
   const comandos: string[][] = []
+  const ambientes: Record<string, string>[] = []
   const toasts: string[] = []
   const configs: { key: string; value: unknown }[] = []
 
@@ -56,6 +65,16 @@ function mundo(on: On, variaveis: Record<string, string> = {}, ffmpeg: 'ok' | 'a
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('process.run', (_, e) => {
     comandos.push([...e.argv])
+    const env = e.init?.env ?? {}
+    ambientes.push({ ...env })
+    if (e.argv[0] === 'powershell.exe') {
+      // O Windows responde com CRLF; cada script do mod se reconhece pelas variáveis que recebe.
+      if (env.MINIATURAS_DESTINO !== undefined) return { value: saida('arquivo\r\n') }
+      if (env.MINIATURAS_PAM !== undefined) return { value: saida('40x20\r\n') }
+      if (env.MINIATURAS_SESSAO !== undefined && env.MINIATURAS_RAIZ === undefined) return { value: saida(`${IMAGENS_DO_CLAUDE_NO_WINDOWS}\r\n`) }
+
+      return { value: saida('') }
+    }
     const script = e.argv[0] === 'sh' ? (e.argv[2] ?? '') : ''
     if (script.includes('wl-paste')) return { value: saida('arquivo\n') }
     if (script.includes('ffmpeg')) return { value: ffmpeg === 'ok' ? saida('40x20\n') : saida('', 127) }
@@ -63,7 +82,7 @@ function mundo(on: On, variaveis: Record<string, string> = {}, ffmpeg: 'ok' | 'a
 
     return { value: saida('') }
   })
-  on('fs.read', () => ({ value: { base64: paraBase64(PAM) } }))
+  on('fs.read', (_, e) => ({ value: { base64: e.path.endsWith('.png') ? png : paraBase64(PAM) } }))
   on('fs.exists', () => ({ value: true }))
   on('ui.toast', (_, e) => {
     toasts.push(e.text)
@@ -88,7 +107,7 @@ function mundo(on: On, variaveis: Record<string, string> = {}, ffmpeg: 'ok' | 'a
     return <Text>engine</Text>
   })
 
-  return { relogio, comandos, toasts, configs }
+  return { relogio, comandos, ambientes, toasts, configs }
 }
 
 async function comecar($: Engine): Promise<void> {
@@ -397,3 +416,72 @@ test('depois do envio a miniatura passa a vir do arquivo que o Claude Code mando
   expect(fontes).toEqual([`${PASTA}/3-colagem.png`, `${IMAGENS_DO_CLAUDE}/3.png`])
 })
 
+
+test('num terminal avisado de que desenha imagem (o Bullpen), a miniatura é a imagem com os bytes do PNG', async ($, on) => {
+  const { relogio } = mundo(on, { CLAUDE_CODE_FORCE_TERMINAL_IMAGES: '1' })
+  await comecar($)
+  await colar($, 3)
+
+  const [imagem] = await ate($, relogio, faixa, 'Image')
+  const fonte = propsDe(imagem!).source as { png?: string; file?: string }
+
+  expect(fonte.file).toBeUndefined()
+  expect(fonte.png).toBe(PNG)
+  expect(doTipo(await faixa($), 'Raster')).toHaveLength(0)
+})
+
+test('com o aviso desligado (0) a miniatura continua em blocos', async ($, on) => {
+  const { relogio } = mundo(on, { CLAUDE_CODE_FORCE_TERMINAL_IMAGES: '0' })
+  await comecar($)
+  await colar($, 3)
+
+  await ate($, relogio, faixa, 'Raster')
+  expect(doTipo(await faixa($), 'Image')).toHaveLength(0)
+})
+
+test('no Windows a miniatura aparece sem sh nem ffmpeg: o PowerShell lê a área de transferência e reduz a imagem', async ($, on) => {
+  const { relogio, comandos, ambientes } = mundo(on, NO_WINDOWS)
+  await comecar($)
+  await colar($, 3)
+
+  const [raster] = await ate($, relogio, faixa, 'Raster')
+  expect(propsDe(raster!).columns).toBe(40)
+  expect(comandos.filter(c => c[0] === 'sh')).toHaveLength(0)
+  expect(ambientes.find(a => a.MINIATURAS_DESTINO !== undefined)?.MINIATURAS_DESTINO).toBe(`${PASTA_NO_WINDOWS}\\3-colagem.png`)
+  expect(ambientes.find(a => a.MINIATURAS_PAM !== undefined)?.MINIATURAS_PAM).toBe(`${PASTA_NO_WINDOWS}\\3-colagem.pam`)
+})
+
+test('no Windows, depois do envio, a miniatura vem da pasta temporária do Claude Code', async ($, on) => {
+  const { relogio, ambientes } = mundo(on, NO_WINDOWS)
+  await comecar($)
+  await colar($, 3)
+  await ate($, relogio, faixa, 'Raster')
+
+  await enviar($, 'olha [Image #3]')
+  for (let i = 0; i < 20; i++) await relogio.advance(100)
+
+  const origens = ambientes.filter(a => a.MINIATURAS_PAM !== undefined).map(a => a.MINIATURAS_ORIGEM)
+  expect(origens).toEqual([`${PASTA_NO_WINDOWS}\\3-colagem.png`, `${IMAGENS_DO_CLAUDE_NO_WINDOWS}\\3.png`])
+})
+
+test('no Windows clicar na etiqueta abre a imagem pelo PowerShell', async ($, on) => {
+  const { relogio, ambientes } = mundo(on, NO_WINDOWS)
+  await comecar($)
+  await colar($, 3)
+  await ate($, relogio, faixa, 'Raster')
+
+  const ui = await $.ui.mount({ plugin: 'miniaturas', surface: 'terminal', component: 'AbovePrompt', requestId: 'faixa', props: FAIXA, viewport: TELA })
+  await ui.press({ key: 'abrir-3' })
+  await ui.unmount()
+
+  expect(ambientes.find(a => a.MINIATURAS_ARQUIVO !== undefined)?.MINIATURAS_ARQUIVO).toBe(`${PASTA_NO_WINDOWS}\\3-colagem.png`)
+})
+
+test('um PNG estragado não derruba a faixa: a miniatura volta para os blocos', async ($, on) => {
+  const { relogio } = mundo(on, { CLAUDE_CODE_FORCE_TERMINAL_IMAGES: '1' }, 'ok', paraBase64(PAM))
+  await comecar($)
+  await colar($, 3)
+
+  await ate($, relogio, faixa, 'Raster')
+  expect(doTipo(await faixa($), 'Image')).toHaveLength(0)
+})

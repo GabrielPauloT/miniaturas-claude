@@ -47,7 +47,10 @@ const BLOCOS = (() => {
 const OPACO = 128
 const FIM_DO_CABECALHO = 'ENDHDR\n'
 
-/** Lê o PAM (P7) que o ffmpeg grava: RGB_ALPHA ou RGB, 8 bits por canal. */
+/**
+ * Lê o PAM (P7) que o ffmpeg grava, RGB_ALPHA ou RGB, e o BGR_ALPHA que o PowerShell grava no
+ * Windows (é a ordem em que o System.Drawing guarda os pixels); 8 bits por canal.
+ */
 export function lerPam(bytes: Uint8Array): Pixels | undefined {
   let texto = ''
   for (let i = 0; i < Math.min(bytes.length, 512); i++) texto += String.fromCharCode(bytes[i]!)
@@ -68,7 +71,18 @@ export function lerPam(bytes: Uint8Array): Pixels | undefined {
   const inicio = fim + FIM_DO_CABECALHO.length
   const total = largura * altura
   if (bytes.length - inicio < total * profundidade) return undefined
-  if (profundidade === 4) return { largura, altura, rgba: bytes.slice(inicio, inicio + total * 4) }
+  if (profundidade === 4) {
+    const rgba = bytes.slice(inicio, inicio + total * 4)
+    if (campos.get('TUPLTYPE') === 'BGR_ALPHA') {
+      for (let p = 0; p < total; p++) {
+        const azul = rgba[p * 4]!
+        rgba[p * 4] = rgba[p * 4 + 2]!
+        rgba[p * 4 + 2] = azul
+      }
+    }
+
+    return { largura, altura, rgba }
+  }
 
   const rgba = new Uint8Array(total * 4)
   for (let p = 0; p < total; p++) {

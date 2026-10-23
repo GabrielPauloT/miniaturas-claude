@@ -1,6 +1,6 @@
 {
   "name": "miniaturas",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Miniatura das imagens coladas no prompt, antes e depois de enviar: pequena sempre à vista, numa dica ao passar o mouse ou grande e fixa acima do prompt.",
   "author": { "name": "Gabriel" },
   "types": "./types/index.d.ts",
@@ -15,7 +15,7 @@
     "desenho": {
       "type": "string",
       "title": "Desenho",
-      "description": "auto: imagem de verdade no kitty e no Ghostty, blocos coloridos nos outros terminais. blocos: sempre blocos coloridos. imagem: sempre o protocolo de imagem do kitty.",
+      "description": "auto: imagem de verdade no kitty, no Ghostty e no Bullpen 2.4.2 ou mais novo (ou em qualquer terminal que avise o Claude Code com CLAUDE_CODE_FORCE_TERMINAL_IMAGES=1), blocos coloridos nos outros terminais. blocos: sempre blocos coloridos. imagem: sempre o protocolo de imagem do kitty.",
       "default": "auto",
       "options": ["auto", "blocos", "imagem"]
     }
