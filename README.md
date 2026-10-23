@@ -19,16 +19,18 @@ qual está valendo.
 - O modo `dica` precisa do mouse, que o Claude Code só lê com `"tui": "fullscreen"` no `~/.claude/settings.json`.
   Sem isso ele mostra como `miniatura`. No histórico o cartão abre por cima das linhas de cima; numa mensagem colada
   no topo da tela, sem espaço acima, o Claude Code o empurra para baixo e as linhas seguintes ficam por cima dele.
-- A etiqueta `#N` abre a imagem inteira no visualizador do sistema: clique nela, ou foque a faixa com ctrl+x tab e
-  aperte Enter.
+- Para ver a imagem inteira: na faixa, foque com ctrl+x tab e aperte Enter na etiqueta `#N` (abre no visualizador
+  do sistema). No histórico, o próprio `[Image #N]` do Claude Code é um link para o arquivo: Ctrl+clique abre.
 
 ## Como a miniatura é desenhada
 
 - **No kitty e no Ghostty:** a imagem de verdade, pelo protocolo de imagem do kitty.
-- **Nos outros terminais** (Ptyxis, GNOME Terminal, Konsole, Warp…): caracteres de bloco (`▀▄▌▐▚▞▛▜▙▟█`) em cor
-  verdadeira, quatro pixels por caractere (2×2), com o contorno realçado depois de reduzir. Dá para reconhecer a
-  imagem pelo desenho e pelas cores, mas texto pequeno de um print não fica legível. Para ver inteira, use a
-  etiqueta.
+- **Nos outros terminais** (Ptyxis, GNOME Terminal, Konsole, Warp…): blocos de oitavos e de quadrantes
+  (`▁▂▃▄▅▆▇ ▏▎▍▌▋▊▉ ▘▝▖▗▚▞ █`) em cor verdadeira. Cada caractere resume 8×8 pixels da imagem no bloco e no par
+  de cores que melhor os separam, então as bordas ficam a 1/8 de caractere. A faixa acima do prompt usa até
+  20 linhas (no máximo metade da tela), porque é ali que se confere a colagem. Dá para reconhecer a imagem pelo
+  desenho e pelas cores, mas texto pequeno de um print não fica legível em nenhum terminal que só desenha
+  caracteres: para ler, abra a imagem inteira (acima) ou use o kitty.
 - A opção `desenho` (`auto`, `blocos`, `imagem`) em `/config` força um dos dois.
 
 ## Precisa de

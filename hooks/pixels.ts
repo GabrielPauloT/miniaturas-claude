@@ -14,8 +14,35 @@ const QUADRANTES = [
   ESPACO, 0x2597, 0x2596, 0x2584, 0x259d, 0x2590, 0x259e, 0x259f,
   0x2598, 0x259a, 0x258c, 0x2599, 0x2580, 0x259c, 0x259b, 0x2588,
 ]
-/** As divisões em frente e fundo que vale tentar: o bloco cheio primeiro, e só as com o canto de cima à esquerda na frente (as outras são as mesmas trocadas). */
-const DIVISOES = [15, 8, 9, 10, 11, 12, 13, 14]
+/** Lado da amostra de cada célula: 8×8 pixels, a resolução dos blocos de oitavos. */
+export const AMOSTRA = 8
+
+/**
+ * Os blocos que o desenho escolhe, com os pixels da amostra (0 a 63, linha a linha) que cada um
+ * pinta com a cor da frente: o cheio primeiro, depois os oitavos de baixo (`▁▂▃▄▅▆▇`) e da
+ * esquerda (`▏▎▍▌▋▊▉`), os quadrantes e as diagonais. Um só de cada par que troca frente e fundo.
+ */
+const BLOCOS = (() => {
+  const bloco = (codigo: number, pinta: (x: number, y: number) => boolean) => {
+    const frente: number[] = []
+    for (let i = 0; i < AMOSTRA * AMOSTRA; i++) if (pinta(i % AMOSTRA, Math.floor(i / AMOSTRA))) frente.push(i)
+
+    return { codigo, frente }
+  }
+  const oitavos = [1, 2, 3, 4, 5, 6, 7]
+
+  return [
+    bloco(0x2588, () => true),
+    ...oitavos.map(k => bloco(0x2580 + k, (_, y) => y >= AMOSTRA - k)),
+    ...oitavos.map(k => bloco(0x2590 - k, x => x < k)),
+    bloco(0x2598, (x, y) => x < 4 && y < 4),
+    bloco(0x259d, (x, y) => x >= 4 && y < 4),
+    bloco(0x2596, (x, y) => x < 4 && y >= 4),
+    bloco(0x2597, (x, y) => x >= 4 && y >= 4),
+    bloco(0x259a, (x, y) => (x < 4) === (y < 4)),
+    bloco(0x259e, (x, y) => (x < 4) !== (y < 4)),
+  ]
+})()
 /** Abaixo deste alfa o pixel conta como transparente e deixa aparecer o fundo do terminal. */
 const OPACO = 128
 const FIM_DO_CABECALHO = 'ENDHDR\n'
@@ -109,46 +136,64 @@ export function reduzir(px: Pixels, largura: number, altura: number): Pixels {
 }
 
 /**
- * As células de um `Raster` (RasterProps `cells`): cada célula mostra 2×2 pixels com um caractere de
- * quadrantes (`▘▝▖▗▀▄▌▐▚▞▛▜▙▟█`) e o par de cores que melhor os separa, o dobro de detalhe na
- * horizontal de um meio-bloco. Onde o pixel é transparente fica o fundo do terminal.
+ * As células de um `Raster` (RasterProps `cells`): cada célula resume 8×8 pixels num bloco de
+ * oitavos ou de quadrantes e no par de cores que melhor os separa, com as bordas a 1/8 de célula.
+ * Onde a célula é transparente fica o fundo do terminal.
  *
- * `px` já vem no tamanho da miniatura: `colunas * 2` × `linhas * 2`.
+ * `px` já vem no tamanho da miniatura: `colunas * AMOSTRA` × `linhas * AMOSTRA`.
  */
 export function celulas(px: Pixels): string {
-  const colunas = Math.ceil(px.largura / 2)
-  const linhas = Math.ceil(px.altura / 2)
+  const colunas = Math.ceil(px.largura / AMOSTRA)
+  const linhas = Math.ceil(px.altura / AMOSTRA)
   const palavras = new Uint32Array(colunas * linhas * 3)
+  const amostra: (Cor | undefined)[] = new Array(AMOSTRA * AMOSTRA)
   for (let l = 0; l < linhas; l++) {
     for (let c = 0; c < colunas; c++) {
-      const quatro = [pixel(px, 2 * c, 2 * l), pixel(px, 2 * c + 1, 2 * l), pixel(px, 2 * c, 2 * l + 1), pixel(px, 2 * c + 1, 2 * l + 1)]
-      palavras.set(quadrante(quatro), (l * colunas + c) * 3)
+      for (let i = 0; i < amostra.length; i++) amostra[i] = pixel(px, c * AMOSTRA + (i % AMOSTRA), l * AMOSTRA + Math.floor(i / AMOSTRA))
+      palavras.set(celula(amostra), (l * colunas + c) * 3)
     }
   }
 
   return paraBase64(new Uint8Array(palavras.buffer))
 }
 
-/** O caractere, a frente e o fundo de uma célula a partir dos seus 4 pixels (undefined: transparente). */
-function quadrante(quatro: (Cor | undefined)[]): [number, number, number] {
-  const opacos = quatro.filter((c): c is Cor => c !== undefined)
+/** O caractere, a frente e o fundo de uma célula a partir da sua amostra (undefined: transparente). */
+function celula(amostra: (Cor | undefined)[]): [number, number, number] {
+  const opacos = amostra.filter((c): c is Cor => c !== undefined)
   if (opacos.length === 0) return [ESPACO, PADRAO, PADRAO]
-  if (opacos.length < 4) {
-    const mascara = quatro.reduce((m, c, i) => (c === undefined ? m : m | (8 >> i)), 0)
+  if (opacos.length < amostra.length) return comTransparencia(amostra, opacos)
 
-    return [QUADRANTES[mascara]!, rgb(media(opacos)), PADRAO]
+  // O melhor bloco é o que mais "explica" as cores: maximiza |soma da frente|²/n + |soma do fundo|²/n.
+  const total = somar(opacos)
+  let melhor = { valor: -Infinity, codigo: 0x2588, frente: total, nFrente: 1, fundo: total, nFundo: 1 }
+  for (const bloco of BLOCOS) {
+    const frente = somar(bloco.frente.map(i => amostra[i]!))
+    const fundo: Cor = [total[0] - frente[0], total[1] - frente[1], total[2] - frente[2]]
+    const nFrente = bloco.frente.length
+    const nFundo = amostra.length - nFrente
+    const valor = quadrado(frente) / nFrente + (nFundo > 0 ? quadrado(fundo) / nFundo : 0)
+    if (valor > melhor.valor + 1e-3) melhor = { valor, codigo: bloco.codigo, frente, nFrente, fundo, nFundo }
   }
-  let melhor = { erro: Infinity, mascara: 15, frente: opacos[0]!, fundo: opacos[0]! }
-  for (const mascara of DIVISOES) {
-    const frente = opacos.filter((_, i) => mascara & (8 >> i))
-    const fundo = opacos.filter((_, i) => !(mascara & (8 >> i)))
-    const corFrente = media(frente)
-    const corFundo = fundo.length > 0 ? media(fundo) : corFrente
-    const erro = frente.reduce((s, c) => s + distancia(c, corFrente), 0) + fundo.reduce((s, c) => s + distancia(c, corFundo), 0)
-    if (erro < melhor.erro) melhor = { erro, mascara, frente: corFrente, fundo: corFundo }
-  }
+  const frente = dividir(melhor.frente, melhor.nFrente)
 
-  return [QUADRANTES[melhor.mascara]!, rgb(melhor.frente), rgb(melhor.fundo)]
+  return [melhor.codigo, rgb(frente), melhor.nFundo > 0 ? rgb(dividir(melhor.fundo, melhor.nFundo)) : rgb(frente)]
+}
+
+/** Célula com parte transparente: cada quadrante opaco na frente (média), o resto com o fundo do terminal. */
+function comTransparencia(amostra: (Cor | undefined)[], opacos: Cor[]): [number, number, number] {
+  let mascara = 0
+  for (let q = 0; q < 4; q++) {
+    let cheios = 0
+    for (let i = 0; i < amostra.length; i++) {
+      const x = i % AMOSTRA
+      const y = Math.floor(i / AMOSTRA)
+      if ((x >= AMOSTRA / 2 ? 1 : 0) + (y >= AMOSTRA / 2 ? 2 : 0) === q && amostra[i] !== undefined) cheios++
+    }
+    if (cheios * 8 >= amostra.length) mascara |= 8 >> q
+  }
+  if (mascara === 0) return [ESPACO, PADRAO, PADRAO]
+
+  return [QUADRANTES[mascara]!, rgb(dividir(somar(opacos), opacos.length)), PADRAO]
 }
 
 /** O pixel como cor, ou undefined quando é transparente ou fica fora da imagem. */
@@ -160,14 +205,23 @@ function pixel(px: Pixels, x: number, y: number): Cor | undefined {
   return [px.rgba[i]!, px.rgba[i + 1]!, px.rgba[i + 2]!]
 }
 
-function media(cores: Cor[]): Cor {
-  const soma = cores.reduce((s, c) => [s[0] + c[0], s[1] + c[1], s[2] + c[2]], [0, 0, 0])
+function somar(cores: Cor[]): Cor {
+  const soma: Cor = [0, 0, 0]
+  for (const c of cores) {
+    soma[0] += c[0]
+    soma[1] += c[1]
+    soma[2] += c[2]
+  }
 
-  return [Math.round(soma[0] / cores.length), Math.round(soma[1] / cores.length), Math.round(soma[2] / cores.length)]
+  return soma
 }
 
-function distancia(a: Cor, b: Cor): number {
-  return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
+function quadrado(c: Cor): number {
+  return c[0] * c[0] + c[1] * c[1] + c[2] * c[2]
+}
+
+function dividir(c: Cor, n: number): Cor {
+  return [Math.round(c[0] / n), Math.round(c[1] / n), Math.round(c[2] / n)]
 }
 
 /** A cor no formato do `Raster`: `0x00RRGGBB`. */

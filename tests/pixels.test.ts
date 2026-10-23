@@ -72,38 +72,45 @@ test('reduzir pesa a cor pelo alfa, sem escurecer a borda transparente', () => {
   expect([...reduzir(px, 1, 1).rgba]).toEqual([255, 0, 0, 128])
 })
 
-/** Uma célula de 2×2 pixels: em cima à esquerda, em cima à direita, embaixo à esquerda, embaixo à direita. */
-function celula2x2(tl: number[], tr: number[], bl: number[], br: number[]) {
-  return lerPam(pam(2, 2, 4, [...tl, ...tr, ...bl, ...br]))!
+/** Uma célula como o mod a amostra, 8×8 pixels (ou mais células lado a lado, com `largura`). */
+function celula8(cor: (x: number, y: number) => number[], largura = 8) {
+  const dados: number[] = []
+  for (let y = 0; y < 8; y++) for (let x = 0; x < largura; x++) dados.push(...cor(x, y))
+
+  return lerPam(pam(largura, 8, 4, dados))!
 }
 
-test('cada célula mostra 2×2 pixels com o par de cores que melhor os separa', () => {
-  expect(triplas(celulas(celula2x2(VERMELHO, VERMELHO, AZUL, AZUL)))).toEqual([[0x2580, 0xff0000, 0x0000ff]])
-  expect(triplas(celulas(celula2x2(VERMELHO, AZUL, VERMELHO, AZUL)))).toEqual([[0x258c, 0xff0000, 0x0000ff]])
-  expect(triplas(celulas(celula2x2(VERMELHO, AZUL, AZUL, VERMELHO)))).toEqual([[0x259a, 0xff0000, 0x0000ff]])
-  expect(triplas(celulas(celula2x2(VERMELHO, AZUL, AZUL, AZUL)))).toEqual([[0x2598, 0xff0000, 0x0000ff]])
-  expect(triplas(celulas(celula2x2(AZUL, AZUL, AZUL, VERMELHO)))).toEqual([[0x259b, 0x0000ff, 0xff0000]])
+test('cada célula mostra 8×8 pixels com o bloco e o par de cores que melhor os separam', () => {
+  expect(triplas(celulas(celula8((_, y) => (y < 4 ? VERMELHO : AZUL))))).toEqual([[0x2584, 0x0000ff, 0xff0000]])
+  expect(triplas(celulas(celula8(x => (x < 4 ? VERMELHO : AZUL))))).toEqual([[0x258c, 0xff0000, 0x0000ff]])
+  expect(triplas(celulas(celula8((x, y) => (x < 4 && y < 4 ? VERMELHO : AZUL))))).toEqual([[0x2598, 0xff0000, 0x0000ff]])
+  expect(triplas(celulas(celula8((x, y) => ((x < 4) === (y < 4) ? VERMELHO : AZUL))))).toEqual([[0x259a, 0xff0000, 0x0000ff]])
+})
+
+test('os blocos de oitavos põem a borda a 1/8 de célula', () => {
+  expect(triplas(celulas(celula8(x => (x < 3 ? VERMELHO : AZUL))))).toEqual([[0x258d, 0xff0000, 0x0000ff]])
+  expect(triplas(celulas(celula8((_, y) => (y >= 7 ? VERDE : AZUL))))).toEqual([[0x2581, 0x00ff00, 0x0000ff]])
+  expect(triplas(celulas(celula8((_, y) => (y >= 2 ? VERDE : AZUL))))).toEqual([[0x2586, 0x00ff00, 0x0000ff]])
 })
 
 test('célula de uma cor só vira um bloco cheio daquela cor', () => {
-  expect(triplas(celulas(celula2x2(VERDE, VERDE, VERDE, VERDE)))).toEqual([[0x2588, 0x00ff00, 0x00ff00]])
+  expect(triplas(celulas(celula8(() => VERDE)))).toEqual([[0x2588, 0x00ff00, 0x00ff00]])
 })
 
 test('com mais de duas cores a célula fica com as duas médias mais fiéis', () => {
-  const px = celula2x2(VERMELHO, VERMELHO, [0, 0, 200, 255], [0, 0, 100, 255])
+  const px = celula8((x, y) => (y < 4 ? VERMELHO : x < 4 ? [0, 0, 200, 255] : [0, 0, 100, 255]))
 
-  expect(triplas(celulas(px))).toEqual([[0x2580, 0xff0000, 0x000096]])
+  expect(triplas(celulas(px))).toEqual([[0x2584, 0x000096, 0xff0000]])
 })
 
 test('pixel transparente deixa aparecer o fundo do terminal', () => {
-  expect(triplas(celulas(celula2x2(VAZIO, VAZIO, VERDE, VERDE)))).toEqual([[0x2584, 0x00ff00, PADRAO]])
-  expect(triplas(celulas(celula2x2(VERDE, VAZIO, VAZIO, VAZIO)))).toEqual([[0x2598, 0x00ff00, PADRAO]])
-  expect(triplas(celulas(celula2x2(VAZIO, VAZIO, VAZIO, VAZIO)))).toEqual([[0x20, PADRAO, PADRAO]])
+  expect(triplas(celulas(celula8((_, y) => (y < 4 ? VAZIO : VERDE))))).toEqual([[0x2584, 0x00ff00, PADRAO]])
+  expect(triplas(celulas(celula8((x, y) => (x < 4 && y < 4 ? VERDE : VAZIO))))).toEqual([[0x2598, 0x00ff00, PADRAO]])
+  expect(triplas(celulas(celula8(() => VAZIO)))).toEqual([[0x20, PADRAO, PADRAO]])
 })
 
-test('as células seguem linha a linha, cada uma com 2 pixels de largura e 2 de altura', () => {
-  const linha = [...VERMELHO, ...VERMELHO, ...AZUL, ...AZUL]
-  const px = lerPam(pam(4, 2, 4, [...linha, ...linha]))!
+test('as células seguem linha a linha, cada uma com 8 pixels de largura e 8 de altura', () => {
+  const px = celula8(x => (x < 8 ? VERMELHO : AZUL), 16)
 
   expect(triplas(celulas(px))).toEqual([
     [0x2588, 0xff0000, 0xff0000],

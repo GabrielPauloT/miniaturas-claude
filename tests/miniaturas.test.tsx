@@ -207,8 +207,8 @@ test('colar uma imagem mostra a miniatura na faixa acima do prompt', async ($, o
   await colar($, 3)
 
   const [raster] = await ate($, relogio, faixa, 'Raster')
-  expect(propsDe(raster!).columns).toBe(32)
-  expect(propsDe(raster!).rows).toBe(8)
+  expect(propsDe(raster!).columns).toBe(40)
+  expect(propsDe(raster!).rows).toBe(10)
   expect(textos(await faixa($))).toContain('#3')
   expect(textos(await faixa($))).toContain('engine')
 
@@ -262,6 +262,26 @@ test('modo dica: a faixa mostra só a etiqueta e a miniatura fica escondida até
   expect(textos(await faixa($))).toContain('#3')
 })
 
+test('modo dica: a miniatura revelada cabe na altura da faixa, senão a etiqueta sai de baixo do mouse', { options: { modo: 'dica' } }, async ($, on) => {
+  const { relogio } = mundo(on)
+  await comecar($)
+  await colar($, 3)
+  await ate($, relogio, faixa, 'Raster')
+
+  const ui = await $.ui.mount({
+    plugin: 'miniaturas',
+    surface: 'terminal',
+    component: 'AbovePrompt',
+    requestId: 'faixa',
+    props: { ...FAIXA, maxRows: 6, scroll: { offset: 0, bodyRows: 6 } },
+    viewport: TELA,
+  })
+  const [raster] = doTipo(await ui.drawn(), 'Raster')
+  await ui.unmount()
+
+  expect(propsDe(raster!).rows).toBe(5)
+})
+
 test('modo fixa: a imagem continua grande acima do prompt depois de enviar', { options: { modo: 'fixa' } }, async ($, on) => {
   const { relogio } = mundo(on)
   await comecar($)
@@ -283,7 +303,7 @@ test('a mensagem enviada ganha a miniatura embaixo do que o Claude Code desenha'
 
   const [raster] = await ate($, relogio, $ => mensagem($, 'olha [Image #3]'), 'Raster')
 
-  expect(propsDe(raster!).rows).toBe(6)
+  expect(propsDe(raster!).rows).toBe(8)
   expect(textos(await mensagem($, 'olha [Image #3]'))).toContain('engine')
 })
 
