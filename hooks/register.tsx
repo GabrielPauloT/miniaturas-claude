@@ -234,11 +234,17 @@ async function conferirEnviadas($: Motor, numeros: number[], tentativas: number)
   }
 }
 
-async function observar($: Motor, texto: string): Promise<void> {
+async function observar($: Motor, texto: string, esvaziou = false): Promise<void> {
   const numeros = numerosDeImagem(texto)
   const chave = numeros.join(',')
   if (chave === mem.ultimoRascunho) return
   mem.ultimoRascunho = chave
+  if (esvaziou && numeros.length === 0) {
+    // O envio esvaziou a caixa antes de o prompt.submit chegar: as imagens do rascunho já viram as
+    // últimas, senão o modo fixa fica um instante sem nada acima do prompt.
+    const anteriores = await read($, rascunho)
+    if (anteriores.length > 0) await update($, ultimas, (): number[] => anteriores)
+  }
   await update($, rascunho, (): number[] => numeros)
   const conhecidas = await read($, imagens)
   for (const n of numeros) {
@@ -430,7 +436,7 @@ export const register: Register = (on, options) => {
 
   on('prompt.change', async ($, e, next) => {
     const r = await next(e)
-    await observar($, e.text)
+    await observar($, e.text, e.origin.kind === 'clear')
 
     return r
   })

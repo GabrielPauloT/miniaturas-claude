@@ -1,6 +1,6 @@
 {
   "name": "miniaturas",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Miniatura das imagens coladas no prompt, antes e depois de enviar: pequena sempre à vista, numa dica ao passar o mouse ou grande e fixa acima do prompt.",
   "author": { "name": "Gabriel" },
   "types": "./types/index.d.ts",

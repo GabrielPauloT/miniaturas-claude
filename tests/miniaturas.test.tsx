@@ -121,8 +121,8 @@ async function colar($: Engine, n: number, antes = ''): Promise<void> {
 }
 
 /** O rascunho muda sem edição da pessoa: o envio esvaziou a caixa, uma limpeza. */
-async function rascunho($: Engine, text: string): Promise<void> {
-  await caixa($).change({ text, cursor: text.length, origin: { kind: 'history' } })
+async function rascunho($: Engine, text: string, kind: 'history' | 'clear' = 'history'): Promise<void> {
+  await caixa($).change({ text, cursor: text.length, origin: { kind } })
 }
 
 async function enviar($: Engine, text: string): Promise<void> {
@@ -280,6 +280,17 @@ test('modo dica: a miniatura revelada cabe na altura da faixa, senão a etiqueta
   await ui.unmount()
 
   expect(propsDe(raster!).rows).toBe(5)
+})
+
+test('modo fixa: quando o envio esvazia a caixa, a imagem não some nem antes de o envio chegar', { options: { modo: 'fixa' } }, async ($, on) => {
+  const { relogio } = mundo(on)
+  await comecar($)
+  await colar($, 3)
+  await ate($, relogio, faixa, 'Raster')
+
+  await rascunho($, '', 'clear')
+
+  expect(doTipo(await faixa($), 'Raster')).toHaveLength(1)
 })
 
 test('modo fixa: a imagem continua grande acima do prompt depois de enviar', { options: { modo: 'fixa' } }, async ($, on) => {
