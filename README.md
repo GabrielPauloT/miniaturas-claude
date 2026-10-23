@@ -5,6 +5,14 @@ Mod do Claude Code (feito na 2.1.308) que troca o `[Image #N]` por uma miniatura
 - **antes de enviar**, acima do prompt, para conferir se você colou a imagem certa;
 - **depois de enviar**, embaixo da mensagem, para saber qual imagem era cada `[Image #N]`.
 
+![Os três modos: a miniatura aparece acima do prompt ao colar e embaixo da mensagem enviada; no modo dica, só a etiqueta, e a miniatura surge ao passar o mouse; no modo fixa, a imagem continua acima do prompt depois de enviar](docs/miniaturas.webp)
+
+<sub>As telas são de um Claude Code de verdade (2.1.309, com o Haiku), com o mod instalado, num terminal sem
+protocolo de imagem: as miniaturas são os blocos de caracteres que ele desenha, e as respostas são do modelo
+olhando a imagem. As imagens coladas são fictícias, feitas no PhotoCraft. A lupa, o cursor, as legendas e os
+cortes são da montagem no EffectCraft; o quadro com a miniatura revelada no modo dica foi gravado com um mouse de
+verdade.</sub>
+
 ## Os três jeitos de mostrar
 
 | Modo | O que aparece |
