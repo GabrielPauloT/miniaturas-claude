@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { Elements, EngineInterface, PluginOptions, Register, RenderNode } from 'claude-code'
 
 import type { MiniaturaImagem } from '../types'
-import { caber, celulas, deBase64, lerPam, reduzir } from './pixels'
+import { caber, celulas, deBase64, lerPam, realcar, reduzir } from './pixels'
 import type { Pixels } from './pixels'
 import { numerosDeImagem } from './util'
 
@@ -18,19 +18,21 @@ const rascunho = atom({ plugin: 'miniaturas', key: 'rascunho' } as const, [])
 const ultimas = atom({ plugin: 'miniaturas', key: 'ultimas' } as const, [])
 
 /** Tamanhos máximos das miniaturas, em células. */
-const NA_FAIXA: Caixa = { colunas: 36, linhas: 6 }
-const NA_DICA: Caixa = { colunas: 60, linhas: 10 }
-const NA_MENSAGEM: Caixa = { colunas: 30, linhas: 5 }
+const NA_FAIXA: Caixa = { colunas: 56, linhas: 8 }
+const NA_DICA: Caixa = { colunas: 72, linhas: 14 }
+const NA_MENSAGEM: Caixa = { colunas: 44, linhas: 6 }
 const LINHAS_DA_FIXA = 14
 /** Lado dos pixels guardados no cache: dá para qualquer miniatura sem voltar ao ffmpeg. */
-const LADO_DO_CACHE = 192
+const LADO_DO_CACHE = 320
 /** Lado do PNG reduzido que o kitty e o Ghostty desenham. */
 const LADO_DO_PNG = 640
 /** O Claude Code grava a imagem enviada logo antes da mensagem: tentativas e intervalo para achá-la. */
 const TENTATIVAS_DO_ENVIO = 8
 const ESPERA_DO_ENVIO_MS = 250
 /** Quantos pixels e desenhos ficam na memória do mod. */
-const MAX_NA_MEMORIA = 64
+const MAX_NA_MEMORIA = 32
+/** Quanto realçar o contorno depois de reduzir (0 desliga). */
+const NITIDEZ = 0.4
 
 // A pasta do cache só para a pessoa (as imagens podem ter segredo), e some com as de sessões de mais de 2 dias.
 const SCRIPT_PREPARAR = `
@@ -282,7 +284,7 @@ async function figura($: Motor, ui: Ui, img: MiniaturaImagem, max: Caixa): Promi
   if (px === undefined) return undefined
   const { colunas, linhas } = caber(img.largura ?? px.largura, img.altura ?? px.altura, max.colunas, max.linhas)
   const chave = `${img.n}@${img.versao}:${colunas}x${linhas}`
-  const cells = mem.desenhos.get(chave) ?? lembrar(mem.desenhos, chave, celulas(reduzir(px, colunas, linhas * 2)))
+  const cells = mem.desenhos.get(chave) ?? lembrar(mem.desenhos, chave, celulas(realcar(reduzir(px, colunas * 2, linhas * 2), NITIDEZ)))
 
   return <Raster key={`r${img.n}`} columns={colunas} rows={linhas} cells={cells} />
 }

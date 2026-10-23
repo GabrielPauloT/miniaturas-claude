@@ -207,8 +207,8 @@ test('colar uma imagem mostra a miniatura na faixa acima do prompt', async ($, o
   await colar($, 3)
 
   const [raster] = await ate($, relogio, faixa, 'Raster')
-  expect(propsDe(raster!).columns).toBe(24)
-  expect(propsDe(raster!).rows).toBe(6)
+  expect(propsDe(raster!).columns).toBe(32)
+  expect(propsDe(raster!).rows).toBe(8)
   expect(textos(await faixa($))).toContain('#3')
   expect(textos(await faixa($))).toContain('engine')
 
@@ -283,7 +283,7 @@ test('a mensagem enviada ganha a miniatura embaixo do que o Claude Code desenha'
 
   const [raster] = await ate($, relogio, $ => mensagem($, 'olha [Image #3]'), 'Raster')
 
-  expect(propsDe(raster!).rows).toBe(5)
+  expect(propsDe(raster!).rows).toBe(6)
   expect(textos(await mensagem($, 'olha [Image #3]'))).toContain('engine')
 })
 

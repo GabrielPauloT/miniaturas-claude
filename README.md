@@ -25,9 +25,10 @@ qual está valendo.
 ## Como a miniatura é desenhada
 
 - **No kitty e no Ghostty:** a imagem de verdade, pelo protocolo de imagem do kitty.
-- **Nos outros terminais** (Ptyxis, GNOME Terminal, Konsole, Warp…): blocos coloridos `▀` em cor verdadeira, dois
-  pixels por caractere. Dá para reconhecer a imagem pelo desenho e pelas cores, mas texto pequeno de um print não
-  fica legível. Para ver inteira, use a etiqueta.
+- **Nos outros terminais** (Ptyxis, GNOME Terminal, Konsole, Warp…): caracteres de bloco (`▀▄▌▐▚▞▛▜▙▟█`) em cor
+  verdadeira, quatro pixels por caractere (2×2), com o contorno realçado depois de reduzir. Dá para reconhecer a
+  imagem pelo desenho e pelas cores, mas texto pequeno de um print não fica legível. Para ver inteira, use a
+  etiqueta.
 - A opção `desenho` (`auto`, `blocos`, `imagem`) em `/config` força um dos dois.
 
 ## Precisa de

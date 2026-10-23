@@ -1,11 +1,13 @@
 import { expect, test } from 'claude-code/testing'
 
-import { caber, celulas, lerPam, reduzir } from '../hooks/pixels'
+import { caber, celulas, lerPam, realcar, reduzir } from '../hooks/pixels'
 import { numerosDeImagem } from '../hooks/util'
 
 const PADRAO = 0x01000000
-const MEIO_DE_CIMA = 0x2580
-const MEIO_DE_BAIXO = 0x2584
+const VERMELHO = [255, 0, 0, 255]
+const AZUL = [0, 0, 255, 255]
+const VERDE = [0, 255, 0, 255]
+const VAZIO = [0, 0, 0, 0]
 
 /** Um PAM como o ffmpeg grava: cabeçalho de texto e os pixels crus. */
 function pam(largura: number, altura: number, profundidade: 3 | 4, dados: number[]): Uint8Array {
@@ -70,22 +72,53 @@ test('reduzir pesa a cor pelo alfa, sem escurecer a borda transparente', () => {
   expect([...reduzir(px, 1, 1).rgba]).toEqual([255, 0, 0, 128])
 })
 
-test('cada célula é um meio-bloco: a cor de cima na frente, a de baixo no fundo', () => {
-  const px = lerPam(pam(1, 2, 4, [255, 0, 0, 255, 0, 0, 255, 255]))!
+/** Uma célula de 2×2 pixels: em cima à esquerda, em cima à direita, embaixo à esquerda, embaixo à direita. */
+function celula2x2(tl: number[], tr: number[], bl: number[], br: number[]) {
+  return lerPam(pam(2, 2, 4, [...tl, ...tr, ...bl, ...br]))!
+}
 
-  expect(triplas(celulas(px))).toEqual([[MEIO_DE_CIMA, 0xff0000, 0x0000ff]])
+test('cada célula mostra 2×2 pixels com o par de cores que melhor os separa', () => {
+  expect(triplas(celulas(celula2x2(VERMELHO, VERMELHO, AZUL, AZUL)))).toEqual([[0x2580, 0xff0000, 0x0000ff]])
+  expect(triplas(celulas(celula2x2(VERMELHO, AZUL, VERMELHO, AZUL)))).toEqual([[0x258c, 0xff0000, 0x0000ff]])
+  expect(triplas(celulas(celula2x2(VERMELHO, AZUL, AZUL, VERMELHO)))).toEqual([[0x259a, 0xff0000, 0x0000ff]])
+  expect(triplas(celulas(celula2x2(VERMELHO, AZUL, AZUL, AZUL)))).toEqual([[0x2598, 0xff0000, 0x0000ff]])
+  expect(triplas(celulas(celula2x2(AZUL, AZUL, AZUL, VERMELHO)))).toEqual([[0x259b, 0x0000ff, 0xff0000]])
+})
+
+test('célula de uma cor só vira um bloco cheio daquela cor', () => {
+  expect(triplas(celulas(celula2x2(VERDE, VERDE, VERDE, VERDE)))).toEqual([[0x2588, 0x00ff00, 0x00ff00]])
+})
+
+test('com mais de duas cores a célula fica com as duas médias mais fiéis', () => {
+  const px = celula2x2(VERMELHO, VERMELHO, [0, 0, 200, 255], [0, 0, 100, 255])
+
+  expect(triplas(celulas(px))).toEqual([[0x2580, 0xff0000, 0x000096]])
 })
 
 test('pixel transparente deixa aparecer o fundo do terminal', () => {
-  const emCima = lerPam(pam(1, 2, 4, [0, 0, 0, 0, 0, 255, 0, 255]))!
-  const embaixo = lerPam(pam(1, 2, 4, [0, 255, 0, 255, 0, 0, 0, 0]))!
-  const nenhum = lerPam(pam(1, 2, 4, [0, 0, 0, 0, 0, 0, 0, 0]))!
-  const altura1 = lerPam(pam(1, 1, 4, [9, 9, 9, 255]))!
+  expect(triplas(celulas(celula2x2(VAZIO, VAZIO, VERDE, VERDE)))).toEqual([[0x2584, 0x00ff00, PADRAO]])
+  expect(triplas(celulas(celula2x2(VERDE, VAZIO, VAZIO, VAZIO)))).toEqual([[0x2598, 0x00ff00, PADRAO]])
+  expect(triplas(celulas(celula2x2(VAZIO, VAZIO, VAZIO, VAZIO)))).toEqual([[0x20, PADRAO, PADRAO]])
+})
 
-  expect(triplas(celulas(emCima))).toEqual([[MEIO_DE_BAIXO, 0x00ff00, PADRAO]])
-  expect(triplas(celulas(embaixo))).toEqual([[MEIO_DE_CIMA, 0x00ff00, PADRAO]])
-  expect(triplas(celulas(nenhum))).toEqual([[0x20, PADRAO, PADRAO]])
-  expect(triplas(celulas(altura1))).toEqual([[MEIO_DE_CIMA, 0x090909, PADRAO]])
+test('as células seguem linha a linha, cada uma com 2 pixels de largura e 2 de altura', () => {
+  const linha = [...VERMELHO, ...VERMELHO, ...AZUL, ...AZUL]
+  const px = lerPam(pam(4, 2, 4, [...linha, ...linha]))!
+
+  expect(triplas(celulas(px))).toEqual([
+    [0x2588, 0xff0000, 0xff0000],
+    [0x2588, 0x0000ff, 0x0000ff],
+  ])
+})
+
+test('realçar aumenta o contraste de um ponto com a vizinhança, sem passar de 255', () => {
+  const ponto = (centro: number, vizinho: number) =>
+    lerPam(pam(3, 3, 3, [...Array(9).keys()].flatMap(i => (i === 4 ? [centro, centro, centro] : [vizinho, vizinho, vizinho]))))!
+
+  expect(realcar(ponto(200, 100), 0.4).rgba[16]).toBe(240)
+  expect(realcar(ponto(250, 0), 0.4).rgba[16]).toBe(255)
+  expect(realcar(ponto(200, 100), 0.4).rgba[19]).toBe(255)
+  expect([...realcar(ponto(100, 100), 0.4).rgba]).toEqual([...ponto(100, 100).rgba])
 })
 
 test('acha os números dos marcadores de imagem, sem repetir', () => {
